@@ -2,11 +2,9 @@
 //  - Sensor 1 on GPIO39 = PINCH channel
 // uses moving average + hysteresis on each channel, then combines.
 
-// ----------- PINS ----------
 const int FIST_PIN  = 34;  // EMG ENV for fist
 const int PINCH_PIN = 39;  // EMG ENV for pinch
 
-// ----------- FILTER SETTINGS ----------
 const int N = 20;          // moving average window
 
 // per-channel ring buffers + sums
@@ -16,7 +14,7 @@ long sumF = 0, sumP = 0;
 
 // ----------- THRESHOLDS (tuning these rn) ----------
 // Hysteresis: ON threshold higher than OFF threshold to prevent flicker.
-// Start with OFF slightly below ON (like 20-100 counts) once scale is clear.
+// We have to start with OFF below ON (like 20-100 counts) once scale is clear.
 int TH_FIST_ON  = 1000;
 int TH_FIST_OFF =  950;
 
