@@ -1,0 +1,138 @@
+//  - Sensor 0 on GPIO34 = FIST channel
+//  - Sensor 1 on GPIO39 = PINCH channel
+// uses moving average + hysteresis on each channel, then combines.
+
+const int FIST_PIN  = 34;  // EMG ENV for fist
+const int PINCH_PIN = 39;  // EMG ENV for pinch
+
+const int N = 20;          // moving average window
+
+// per-channel ring buffers + sums
+int bufF[N], bufP[N];
+int idxF = 0, idxP = 0;
+long sumF = 0, sumP = 0;
+
+// ----------- THRESHOLDS (tuning these rn) ----------
+// Hysteresis: ON threshold higher than OFF threshold to prevent flicker.
+// We have to start with OFF below ON (like 20-100 counts) once scale is clear.
+int TH_FIST_ON  = 1000;
+int TH_FIST_OFF =  950;
+
+int TH_PINCH_ON  = 1000;
+int TH_PINCH_OFF =  950;
+
+// ----------- STATES ----------
+bool fistActive  = false;
+bool pinchActive = false;
+
+// last combined label so we print only when it changes
+enum Gesture { OPEN, FIST, PINCH, BOTH };
+Gesture lastGesture = OPEN;
+
+unsigned long lastDebug = 0;
+
+// prime the moving-average buffer so startup avg isn't garbage
+void primeFilter(int pin, int *buf, long &sum) {
+  int first = analogRead(pin);
+  sum = 0;
+  for (int i = 0; i < N; i++) {
+    buf[i] = first;
+    sum += first;
+  }
+}
+
+// update ring buffer and return moving average
+int updateAvg(int raw, int *buf, int &idx, long &sum) {
+  sum -= buf[idx];
+  buf[idx] = raw;
+  sum += raw;
+  idx = (idx + 1) % N;
+  return (int)(sum / N);
+}
+
+//apply hysteresis to convert avg -> boolean "active"
+bool applyHysteresis(bool currentState, int avg, int thOn, int thOff) {
+  if (!currentState && avg > thOn)  return true;   // turn ON
+  if ( currentState && avg < thOff) return false;  // turn OFF
+  return currentState;                             // hold
+}
+
+// combine the two channel states into one gesture label
+Gesture classifyGesture(bool fist, bool pinch) {
+  if (fist && pinch) return BOTH;   // optional case
+  if (fist)          return FIST;
+  if (pinch)         return PINCH;
+  return OPEN;
+}
+
+const char* gestureName(Gesture g) {
+  switch (g) {
+    case OPEN:  return "open";
+    case FIST:  return "fist";
+    case PINCH: return "pinch";
+    case BOTH:  return "both"; // can change this
+  }
+  return "unknown";
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  // ESP32 analog reads are 12-bit by default (0..4095). These are optional.
+  // analogReadResolution(12);
+  // analogSetPinAttenuation(FIST_PIN,  ADC_11db);
+  // analogSetPinAttenuation(PINCH_PIN, ADC_11db);
+
+  primeFilter(FIST_PIN,  bufF, sumF);
+  primeFilter(PINCH_PIN, bufP, sumP);
+
+  Serial.println("Ready: detecting OPEN / FIST / PINCH");
+}
+
+void loop() {
+  // 1) Read raw envelope signals
+  int rawF = analogRead(FIST_PIN);
+  int rawP = analogRead(PINCH_PIN);
+
+  // 2) Smooth them w moving average
+  int avgF = updateAvg(rawF, bufF, idxF, sumF);
+  int avgP = updateAvg(rawP, bufP, idxP, sumP);
+
+  // 3) convert each channel to ON/OFF w hysteresis thresholds
+  fistActive  = applyHysteresis(fistActive,  avgF, TH_FIST_ON,  TH_FIST_OFF);
+  pinchActive = applyHysteresis(pinchActive, avgP, TH_PINCH_ON, TH_PINCH_OFF);
+
+  // 4 ) Combine into a gesture label
+  Gesture g = classifyGesture(fistActive, pinchActive);
+
+  // 5) print when the gesture label changes
+  if (g != lastGesture) {
+    Serial.print("GESTURE=");
+    Serial.println(gestureName(g));
+    lastGesture = g;
+  }
+
+  // 6) debug print for tuning thresholds (raw + avg + channel states)
+  if (millis() - lastDebug > 100) {
+    lastDebug = millis();
+
+    Serial.print("F raw=");
+    Serial.print(rawF);
+    Serial.print(" avg=");
+    Serial.print(avgF);
+    Serial.print(" active=");
+    Serial.print(fistActive ? "1" : "0");
+
+    Serial.print(" | P raw=");
+    Serial.print(rawP);
+    Serial.print(" avg=");
+    Serial.print(avgP);
+    Serial.print(" active=");
+    Serial.print(pinchActive ? "1" : "0");
+
+    Serial.print(" | gesture=");
+    Serial.println(gestureName(g));
+  }
+
+  delay(50); // should raise if noise is too high
+}
