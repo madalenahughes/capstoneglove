@@ -1,3 +1,6 @@
+//saved as emg_logger.py
+//run with python3 emg_logger.py
+
 import serial
 import time
 import os
