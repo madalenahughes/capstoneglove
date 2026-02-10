@@ -1,0 +1,41 @@
+import serial
+import time
+import os
+from datetime import datetime
+
+# -------- USER SETTINGS --------
+PORT = "COM3"
+BAUD = 115200
+OUT_DIR = "logs"
+# --------------------------------
+
+os.makedirs(OUT_DIR, exist_ok=True)
+
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+outfile = os.path.join(OUT_DIR, f"emg_log_{timestamp}.csv")
+
+print(f"Opening serial port {PORT} @ {BAUD} baud")
+print(f"Logging to {outfile}")
+
+ser = serial.Serial(PORT, BAUD, timeout=1)
+time.sleep(2)  # allow ESP32 to reset
+
+with open(outfile, "w", buffering=1) as f:  # line-buffered
+    try:
+        while True:
+            line = ser.readline().decode("utf-8", errors="ignore").strip()
+            if not line:
+                continue
+
+            # Optional: sanity check that this is CSV
+            if "," not in line:
+                continue
+
+            f.write(line + "\n")
+            print(line)  # live echo to terminal
+
+    except KeyboardInterrupt:
+        print("\nStopping logger…")
+
+ser.close()
+print("Serial closed. File saved.")
