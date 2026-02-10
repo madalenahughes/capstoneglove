@@ -15,11 +15,11 @@ long sumF = 0, sumP = 0;
 // ----------- THRESHOLDS (tuning these rn) ----------
 // Hysteresis: ON threshold higher than OFF threshold to prevent flicker.
 // We have to start with OFF below ON (like 20-100 counts) once scale is clear.
-int TH_FIST_ON  = 1000;
-int TH_FIST_OFF =  950;
+int TH_FIST_ON  = 1700;
+int TH_FIST_OFF =  1000;
 
-int TH_PINCH_ON  = 1000;
-int TH_PINCH_OFF =  950;
+int TH_PINCH_ON  = 800;
+int TH_PINCH_OFF =  300;
 
 // ----------- STATES ----------
 bool fistActive  = false;
