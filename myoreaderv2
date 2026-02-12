@@ -96,8 +96,8 @@ const char* gestureName(Gesture g) {
     case OPEN:  return "open";
     case FIST:  return "fist";
     case PINCH: return "pinch";
-    case ALL:  return "strong signals";
-    case REST: return "rest";
+    case ALL:  return "all";
+    case REST: return "rest / extension";
   }
   return "unknown";
 }
