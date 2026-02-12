@@ -41,7 +41,7 @@ bool pinchActive = false;
 bool RESTActive = false;
 
 // last combined label so we print only when it changes
-enum Gesture { OPEN, FIST, PINCH, ALL };
+enum Gesture { OPEN, FIST, PINCH, ALL, REST };
 Gesture lastGesture = OPEN;
 
 unsigned long lastDebug = 0;
@@ -73,20 +73,20 @@ bool applyHysteresis(bool currentState, int avg, int thOn, int thOff) {
 }
 
 // combine the two channel states into one gesture label
-Gesture classifyGesture(bool fist, bool pinch, bool REST) {
+Gesture classifyGesture(bool fist, bool pinch, bool rest, int avgF, int avgP, int avgR) {
 // REST → all channels LOW
 // FIST → flexor HIGH
 // PINCH → thumb channel HIGH
 // OPEN → extensor HIGH
 
-  int maxVal = max(avgF, max(avgP, avgT));
+  int maxVal = max(avgF, max(avgP, avgR));
 
   // If everything is low → REST
   if (maxVal < 300) return REST;
 
-  if (avgF > avgP && avgF > avgT) return FIST;
-  if (avgP > avgF && avgP > avgT) return PINCH;
-  if (avgT > avgF && avgT > avgP) return OPEN;
+  if (avgF > avgP && avgF > avgR) return FIST;
+  if (avgP > avgF && avgP > avgR) return PINCH;
+  if (avgR > avgF && avgR > avgP) return OPEN;
 
   return ALL;
 }
@@ -96,7 +96,8 @@ const char* gestureName(Gesture g) {
     case OPEN:  return "open";
     case FIST:  return "fist";
     case PINCH: return "pinch";
-    case ALL:  return "strong signals"; // can change this
+    case ALL:  return "strong signals";
+    case REST: return "rest";
   }
   return "unknown";
 }
@@ -114,7 +115,7 @@ void setup() {
   primeFilter(REST_PIN, bufR, sumR);
 
 
-  Serial.println("Ready: detecting OPEN / FIST / PINCH / ALL / RESTbu");
+  Serial.println("Ready: detecting OPEN / FIST / PINCH / ALL / REST");
 }
 
 void loop() {
@@ -126,15 +127,15 @@ void loop() {
   // 2) Smooth them w moving average
   int avgF = updateAvg(rawF, bufF, idxF, sumF);
   int avgP = updateAvg(rawP, bufP, idxP, sumP);
-  int avgT = updateAvg(rawR, bufR, idxR, sumR);
+  int avgR = updateAvg(rawR, bufR, idxR, sumR);
 
   // 3) convert each channel to ON/OFF w hysteresis thresholds
   fistActive  = applyHysteresis(fistActive,  avgF, TH_FIST_ON,  TH_FIST_OFF);
   pinchActive = applyHysteresis(pinchActive, avgP, TH_PINCH_ON, TH_PINCH_OFF);
-  RESTActive = applyHysteresis(RESTActive, avgT, REST_on, REST_off);
+  RESTActive = applyHysteresis(RESTActive, avgR, REST_on, REST_off);
 
   // 4 ) Combine into a gesture label
-  Gesture g = classifyGesture(fistActive, pinchActive, RESTActive);
+  Gesture g = classifyGesture(fistActive, pinchActive, RESTActive, avgF, avgP, avgR);
 
   // 5) print when the gesture label changes
   if (g != lastGesture) {
@@ -161,10 +162,10 @@ void loop() {
     Serial.print(" active=");
     Serial.print(pinchActive ? "1" : "0");
 
-    Serial.print(" | 3rd raw=");
+    Serial.print(" | R raw=");
     Serial.print(rawR);
     Serial.print(" avg=");
-    Serial.print(avgT);
+    Serial.print(avgR);
     Serial.print(" active=");
     Serial.print(RESTActive ? "1" : "0");
 
