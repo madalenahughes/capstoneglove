@@ -7,10 +7,15 @@ const int PINCH_PIN = 39;  // EMG ENV for pinch
 const int REST_PIN = 36;  // EMG ENV for 3rd channel
 
 const int N = 20;          // moving average window
-// per-channel ring buffers + sums
+// per-channel ring buffers + sums (raw values)
 int bufF[N], bufP[N], bufR[N];
 int idxF = 0, idxP = 0, idxR = 0;
 long sumF = 0, sumP = 0, sumR = 0;
+
+// per-channel ring buffers + sums (average values)
+int avgBufF[N], avgBufP[N], avgBufR[N];
+int avgIdxF = 0, avgIdxP = 0, avgIdxR = 0;
+long avgSumF = 0, avgSumP = 0, avgSumR = 0;
 
 // ----------- THRESHOLDS (tuning these rn) ----------
 // Hysteresis: ON threshold higher than OFF threshold to prevent flicker.
@@ -65,6 +70,18 @@ int updateAvg(int raw, int *buf, int &idx, long &sum) {
   return (int)(sum / N);
 }
 
+// calculate standard deviation of values currently in a ring buffer
+// reuses the running sum already maintained by updateAvg for the mean
+int updateSTD(int *buf, long sum) {
+  long mean = sum / N;
+  long sqSum = 0;
+  for (int i = 0; i < N; i++) {
+    long diff = buf[i] - mean;
+    sqSum += diff * diff;
+  }
+  return (int)sqrt((float)sqSum / N);
+}
+
 //apply hysteresis to convert avg -> boolean "active"
 bool applyHysteresis(bool currentState, int avg, int thOn, int thOff) {
   if (!currentState && avg > thOn)  return true;   // turn ON
@@ -114,6 +131,10 @@ void setup() {
   primeFilter(PINCH_PIN, bufP, sumP);
   primeFilter(REST_PIN, bufR, sumR);
 
+  // prime average buffers with the initial average (= first raw reading)
+  primeFilter(FIST_PIN,  avgBufF, avgSumF);
+  primeFilter(PINCH_PIN, avgBufP, avgSumP);
+  primeFilter(REST_PIN,  avgBufR, avgSumR);
 
   Serial.println("Ready: detecting OPEN / FIST / PINCH / ALL / REST");
 }
@@ -124,10 +145,25 @@ void loop() {
   int rawP = analogRead(PINCH_PIN);
   int rawR = analogRead(REST_PIN);
 
+  // Calculate raw STD (before updateAvg overwrites the oldest raw sample)
+  int rawStdF = updateSTD(bufF, sumF);
+  int rawStdP = updateSTD(bufP, sumP);
+  int rawStdR = updateSTD(bufR, sumR);
+
   // 2) Smooth them w moving average
   int avgF = updateAvg(rawF, bufF, idxF, sumF);
   int avgP = updateAvg(rawP, bufP, idxP, sumP);
   int avgR = updateAvg(rawR, bufR, idxR, sumR);
+
+  // Feed averages into their own ring buffers
+  updateAvg(avgF, avgBufF, avgIdxF, avgSumF);
+  updateAvg(avgP, avgBufP, avgIdxP, avgSumP);
+  updateAvg(avgR, avgBufR, avgIdxR, avgSumR);
+
+  // Calculate average STD (from the average ring buffers)
+  int avgStdF = updateSTD(avgBufF, avgSumF);
+  int avgStdP = updateSTD(avgBufP, avgSumP);
+  int avgStdR = updateSTD(avgBufR, avgSumR);
 
   // 3) convert each channel to ON/OFF w hysteresis thresholds
   fistActive  = applyHysteresis(fistActive,  avgF, TH_FIST_ON,  TH_FIST_OFF);
@@ -148,28 +184,41 @@ void loop() {
   if (millis() - lastDebug > 100) {
     lastDebug = millis();
 
-    Serial.print("F raw=");
+    // (raw, rawSTD, avg, avgSTD, active)
+    Serial.print("F=(");
     Serial.print(rawF);
-    Serial.print(" avg=");
+    Serial.print(", ");
+    Serial.print(rawStdF);
+    Serial.print(", ");
     Serial.print(avgF);
-    Serial.print(" active=");
+    Serial.print(", ");
+    Serial.print(avgStdF);
+    Serial.print(", ");
     Serial.print(fistActive ? "1" : "0");
 
-    Serial.print(" | P raw=");
+    Serial.print(") | P=(");
     Serial.print(rawP);
-    Serial.print(" avg=");
+    Serial.print(", ");
+    Serial.print(rawStdP);
+    Serial.print(", ");
     Serial.print(avgP);
-    Serial.print(" active=");
+    Serial.print(", ");
+    Serial.print(avgStdP);
+    Serial.print(", ");
     Serial.print(pinchActive ? "1" : "0");
 
-    Serial.print(" | R raw=");
+    Serial.print(") | R=(");
     Serial.print(rawR);
-    Serial.print(" avg=");
+    Serial.print(", ");
+    Serial.print(rawStdR);
+    Serial.print(", ");
     Serial.print(avgR);
-    Serial.print(" active=");
+    Serial.print(", ");
+    Serial.print(avgStdR);
+    Serial.print(", ");
     Serial.print(RESTActive ? "1" : "0");
 
-    Serial.print(" | gesture=");
+    Serial.print(") | G=");
     Serial.println(gestureName(g));
   }
 
