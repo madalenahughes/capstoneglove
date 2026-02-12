@@ -2,37 +2,27 @@
 //  - Sensor 1 on GPIO39 = PINCH channel
 // uses moving average + hysteresis on each channel, then combines.
 
-const int FIST_PIN  = 34;  // EMG ENV for fist
-const int PINCH_PIN = 39;  // EMG ENV for pinch
-const int REST_PIN = 36;  // EMG ENV for 3rd channel
+const int FIRST_PIN  = 34;  // EMG ENV for fist
+const int SECOND_PIN = 39;  // EMG ENV for pinch
+const int THIRD_PIN = 36;  // EMG ENV for 3rd channel
 
 const int N = 20;          // moving average window
 // per-channel ring buffers + sums
 int bufF[N], bufP[N], bufR[N];
-int idxF = 0, idxP = 0, idxR = 0;
-long sumF = 0, sumP = 0, sumR = 0;
+int idxF = 0, idxS = 0, idxT = 0;
+long sumF = 0, sumS = 0, sumT = 0;
 
 // ----------- THRESHOLDS (tuning these rn) ----------
 // Hysteresis: ON threshold higher than OFF threshold to prevent flicker.
 // We have to start with OFF below ON (like 20-100 counts) once scale is clear.
-int TH_FIST_ON  = 1700;
-int TH_FIST_OFF = 1000;
+int FIRST_ON  = 1000;
+int FIRST_OFF = 400;
 
-// add REST
-// last channel can be used to determine flexion group
+int SECOND_ON  = 800;
+int SECOND_OFF =  100;
 
-// rest for pinch around 50- 200
-// rest for fist around 500 - 1000
-// rest for ... ???? 1 more channel
-
-// Normalization system
-// or filter
-
-int TH_PINCH_ON  = 200;
-int TH_PINCH_OFF =  100;
-
-int REST_on = 500;
-int REST_off = 100;
+int THIRD_ON = 300;
+int THIRD_OFF = 50;
 
 
 // ----------- STATES ----------
@@ -107,12 +97,12 @@ void setup() {
 
   // ESP32 analog reads are 12-bit by default (0..4095). These are optional.
   // analogReadResolution(12);
-  // analogSetPinAttenuation(FIST_PIN,  ADC_11db);
-  // analogSetPinAttenuation(PINCH_PIN, ADC_11db);
+  // analogSetPinAttenuation(FIRST_PIN,  ADC_11db);
+  // analogSetPinAttenuation(SECOND_PIN, ADC_11db);
 
-  primeFilter(FIST_PIN,  bufF, sumF);
-  primeFilter(PINCH_PIN, bufP, sumP);
-  primeFilter(REST_PIN, bufR, sumR);
+  primeFilter(FIRST_PIN,  bufF, sumF);
+  primeFilter(SECOND_PIN, bufP, sumS);
+  primeFilter(THIRD_PIN, bufR, sumT);
 
 
   Serial.println("Ready: detecting OPEN / FIST / PINCH / ALL / REST");
@@ -120,19 +110,19 @@ void setup() {
 
 void loop() {
   // 1) Read raw envelope signals
-  int rawF = analogRead(FIST_PIN);
-  int rawP = analogRead(PINCH_PIN);
-  int rawR = analogRead(REST_PIN);
+  int rawF = analogRead(FIRST_PIN);
+  int rawP = analogRead(SECOND_PIN);
+  int rawR = analogRead(THIRD_PIN);
 
   // 2) Smooth them w moving average
   int avgF = updateAvg(rawF, bufF, idxF, sumF);
-  int avgP = updateAvg(rawP, bufP, idxP, sumP);
-  int avgR = updateAvg(rawR, bufR, idxR, sumR);
+  int avgP = updateAvg(rawP, bufP, idxS, sumS);
+  int avgR = updateAvg(rawR, bufR, idxT, sumT);
 
   // 3) convert each channel to ON/OFF w hysteresis thresholds
-  fistActive  = applyHysteresis(fistActive,  avgF, TH_FIST_ON,  TH_FIST_OFF);
-  pinchActive = applyHysteresis(pinchActive, avgP, TH_PINCH_ON, TH_PINCH_OFF);
-  RESTActive = applyHysteresis(RESTActive, avgR, REST_on, REST_off);
+  fistActive  = applyHysteresis(fistActive,  avgF, FIRST_ON,  FIRST_OFF);
+  pinchActive = applyHysteresis(pinchActive, avgP, SECOND_ON, SECOND_OFF);
+  RESTActive = applyHysteresis(RESTActive, avgR, THIRD_ON, THIRD_OFF);
 
   // 4 ) Combine into a gesture label
   Gesture g = classifyGesture(fistActive, pinchActive, RESTActive, avgF, avgP, avgR);
