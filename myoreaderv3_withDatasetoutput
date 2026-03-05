@@ -1,7 +1,8 @@
 //  - Sensor 0 on GPIO34 = FIST channel
 //  - Sensor 1 on GPIO39 = PINCH channel
 // uses moving average + hysteresis on each channel, then combines.
-
+// adding time stamp
+// 
 const int FIST_PIN  = 34;  // EMG ENV for fist
 const int PINCH_PIN = 39;  // EMG ENV for pinch
 const int REST_PIN = 36;  // EMG ENV for 3rd channel
@@ -34,6 +35,9 @@ int REST_off = 20;
 const int DATASET_SIZE = 500;
 int sampleCount = 0;
 bool captureData = true;
+
+// Time 
+int sig = 1;
 
 // ----------- STATES ----------
 bool fistActive  = false;
@@ -209,6 +213,9 @@ void loop() {
     Serial.print(") | G=");
     Serial.println(gestureName(g));
 
+    Serial.print(" | Signal=");
+    Serial.println(sig);
+    sig++;
     sampleCount++;
 
     if (sampleCount >= DATASET_SIZE) {
@@ -222,5 +229,5 @@ void loop() {
   //  lastDebug = millis();
   //}
 
-  delay(50); // should raise if noise is too high
+  delay(20); // should raise if noise is too high
 }
