@@ -6,7 +6,7 @@ const int PINCH_PIN     = 39;
 const int EXTENSION_PIN = 36;
 
 const int delayTime  = 50;   // ms between reads
-const int datasetSize = 5000; // number of samples to capture
+const int datasetSize = 4900; // number of samples to capture
 
 int counter = 1;
 
