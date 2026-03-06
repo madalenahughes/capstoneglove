@@ -81,42 +81,40 @@ void setup() {
   Serial.println("rawF, rawP, rawE, gesture, sample");
 }
 
-void loop() {
-  while (counter <= datasetSize) {
-    int rawF = analogRead(FIST_PIN);
-    int rawP = analogRead(PINCH_PIN);
-    int rawE = analogRead(EXTENSION_PIN);
+while (counter <= datasetSize) {
+  int rawF = analogRead(FIST_PIN);
+  int rawP = analogRead(PINCH_PIN);
+  int rawE = analogRead(EXTENSION_PIN);
 
-    // Smooth with moving average
-    int avgF = updateAvg(rawF, bufF, idxF, sumF);
-    int avgP = updateAvg(rawP, bufP, idxP, sumP);
-    int avgE = updateAvg(rawE, bufE, idxE, sumE);
+  // Smooth with moving average
+  int avgF = updateAvg(rawF, bufF, idxF, sumF);
+  int avgP = updateAvg(rawP, bufP, idxP, sumP);
+  int avgE = updateAvg(rawE, bufE, idxE, sumE);
 
-    // Normalize each channel to 0-100
-    int normF = normalizeChannel(avgF, normBufF);
-    int normP = normalizeChannel(avgP, normBufP);
-    int normE = normalizeChannel(avgE, normBufE);
+  // Normalize each channel to 0-100
+  int normF = normalizeChannel(avgF, normBufF);
+  int normP = normalizeChannel(avgP, normBufP);
+  int normE = normalizeChannel(avgE, normBufE);
 
-    // Advance shared normalization index
-    normIdx = (normIdx + 1) % NORM_N;
+  // Advance shared normalization index
+  normIdx = (normIdx + 1) % NORM_N;
 
-    // Classify gesture from normalized values
-    Gesture g = classifyGesture(normF, normP, normE);
+  // Classify gesture from normalized values
+  Gesture g = classifyGesture(normF, normP, normE);
 
-    // Output: raw values + gesture label + sample counter
-    Serial.print(rawF);
-    Serial.print(", ");
-    Serial.print(rawP);
-    Serial.print(", ");
-    Serial.print(rawE);
-    Serial.print(", ");
-    Serial.print(gestureName(g));
-    Serial.print(", ");
-    Serial.println(counter);
+  // Output: raw values + gesture label + sample counter
+  Serial.print(rawF);
+  Serial.print(", ");
+  Serial.print(rawP);
+  Serial.print(", ");
+  Serial.print(rawE);
+  Serial.print(", ");
+  Serial.print(gestureName(g));
+  Serial.print(", ");
+  Serial.println(counter);
 
-    counter++;
-    delay(delayTime);
-  }
-
-  Serial.println("DATA COLLECTION COMPLETE");
+  counter++;
+  delay(delayTime);
 }
+
+Serial.println("DATA COLLECTION COMPLETE");
