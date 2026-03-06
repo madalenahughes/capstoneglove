@@ -3,7 +3,7 @@ import csv
 import sys
 from datetime import datetime
 
-PORT = "/dev/cu.usbserial-0001"  # change to your ESP32 port
+PORT = "/dev/cu.usbserial-02706966"  # change to your ESP32 port
 BAUD = 115200
 OUTPUT_FILE = f"emg_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 HEADER = ["fist", "pinch", "extension", "sample"]
