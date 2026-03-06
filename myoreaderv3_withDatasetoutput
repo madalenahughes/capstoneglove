@@ -1,4 +1,4 @@
-//  - Sensor 0 on GPIO34 = FIST channel
+/  - Sensor 0 on GPIO34 = FIST channel
 //  - Sensor 1 on GPIO39 = PINCH channel
 // uses moving average + hysteresis on each channel, then combines.
 // adding time stamp
