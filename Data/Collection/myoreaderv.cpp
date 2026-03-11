@@ -81,7 +81,7 @@ void setup() {
   Serial.println("rawF, rawP, rawE, gesture, sample");
 }
 
-while (counter <= datasetSize) {
+void loop() {
   int rawF = analogRead(FIST_PIN);
   int rawP = analogRead(PINCH_PIN);
   int rawE = analogRead(EXTENSION_PIN);
@@ -103,17 +103,19 @@ while (counter <= datasetSize) {
   Gesture g = classifyGesture(normF, normP, normE);
 
   // Output: raw values + gesture label + sample counter
-  Serial.print(rawF);
-  Serial.print(", ");
-  Serial.print(rawP);
-  Serial.print(", ");
-  Serial.print(rawE);
-  Serial.print(", ");
-  Serial.print(gestureName(g));
-  Serial.print(", ");
-  Serial.println(counter);
-
-  counter++;
+  if (counter <= datasetSize) {
+    Serial.print(rawF);
+    Serial.print(", ");
+    Serial.print(rawP);
+    Serial.print(", ");
+    Serial.print(rawE);
+    Serial.print(", ");
+    Serial.print(gestureName(g));
+    Serial.print(", ");
+    Serial.println(counter);
+    counter++;
+  }
+  
   delay(delayTime);
 }
 
