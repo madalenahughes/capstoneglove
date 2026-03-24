@@ -118,5 +118,3 @@ void loop() {
   
   delay(delayTime);
 }
-
-Serial.println("DATA COLLECTION COMPLETE");
