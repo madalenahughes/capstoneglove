@@ -68,20 +68,20 @@ Gesture classifyGesture(int nF, int nP, int nE) {
 
 const char* gestureName(Gesture g) {
   switch (g) {
-    case FIST:          return "FIST";
-    case PINCH:         return "PINCH";
-    case MIDDLE-PINCH:  return "MIDDLE-PINCH";
-    case PEACE:         return "PEACE";
-    case THUMBS-UP:     return "THUMBS-UP";
-    case POINT:         return "POINT";
-    case THUMB:         return "THUMB";
-    case INDEX:         return "INDEX";
-    case MIDDLE:        return "MIDDLE";
-    case RING:          return "RING";
-    case PINKY:         return "PINKY";
-    case REST:          return "REST";
+    case REST:          return 1;
+    case FIST:          return 2;
+    case PINCH:         return 3;
+    case MIDDLE-PINCH:  return 4;
+    case POINT:         return 5;
+    case THUMBS-UP:     return 6;
+    case PEACE:         return 7;
+    case THUMB:         return 8;
+    case INDEX:         return 9;
+    case MIDDLE:        return 10;
+    case RING:          return 11;
+    case PINKY:         return 12;
   }
-  return "UNKNOWN";
+  return 0;
 }
 
 void setup() {
