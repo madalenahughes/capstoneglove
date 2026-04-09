@@ -52,77 +52,65 @@ int normalizeChannel(int avg, int *normBuf) {
 }
 
 Gesture classifyGesture(int nF, int nP, int nE) {
-  bool fistHigh      = nF > TH_FIST;
-  bool pinchHigh     = nP > TH_PINCH;
-  bool extensionHigh = nE > TH_EXTENSION;
+    bool fistHigh      = nF > TH_FIST;
+    bool pinchHigh     = nP > TH_PINCH;
+    bool extensionHigh = nE > TH_EXTENSION;
 
-  if (!fistHigh && !pinchHigh && !extensionHigh) return REST;
+    if (!fistHigh && !pinchHigh && !extensionHigh) return REST;
 
-  // Dominant channel wins
-  if (nF >= nP && nF >= nE && fistHigh)      return FIST;
-  if (nP >= nF && nP >= nE && pinchHigh)     return PINCH;
-  if (nE >= nF && nE >= nP && extensionHigh) return EXTENSION;
+    // Dominant channel wins
+    if (nF >= nP && nF >= nE && fistHigh)      return FIST;
+    if (nP >= nF && nP >= nE && pinchHigh)     return PINCH;
+    if (nE >= nF && nE >= nP && extensionHigh) return EXTENSION;
 
-  return REST;
+    return REST;
 }
 
 const char* gestureName(Gesture g) {
-  switch (g) {
-    case REST:          return 1;
-    case FIST:          return 2;
-    case PINCH:         return 3;
-    case MIDDLE-PINCH:  return 4;
-    case POINT:         return 5;
-    case THUMBS-UP:     return 6;
-    case PEACE:         return 7;
-    case THUMB:         return 8;
-    case INDEX:         return 9;
-    case MIDDLE:        return 10;
-    case RING:          return 11;
-    case PINKY:         return 12;
-  }
-  return 0;
+    switch (g) {
+        case REST:          return 1;
+        case FIST:          return 2;
+        case PINCH:         return 3;
+        case MIDDLE-PINCH:  return 4;
+        case POINT:         return 5;
+        case THUMBS-UP:     return 6;
+        case PEACE:         return 7;
+        case THUMB:         return 8;
+        case INDEX:         return 9;
+        case MIDDLE:        return 10;
+        case RING:          return 11;
+        case PINKY:         return 12;
+    }
+    return 0;
 }
 
 void setup() {
-  Serial.begin(115200);
-  Serial.println("rawF, rawP, rawE, gesture, sample");
+    Serial.begin(115200);
 }
 
 void loop() {
-  int rawF = analogRead(FIST_PIN);
-  int rawP = analogRead(PINCH_PIN);
-  int rawE = analogRead(EXTENSION_PIN);
+    int rawF = analogRead(FIST_PIN);
+    int rawP = analogRead(PINCH_PIN);
+    int rawE = analogRead(EXTENSION_PIN);
 
-  // Smooth with moving average
-  int avgF = updateAvg(rawF, bufF, idxF, sumF);
-  int avgP = updateAvg(rawP, bufP, idxP, sumP);
-  int avgE = updateAvg(rawE, bufE, idxE, sumE);
+    // Smooth with moving average
+    int avgF = updateAvg(rawF, bufF, idxF, sumF);
+    int avgP = updateAvg(rawP, bufP, idxP, sumP);
+    int avgE = updateAvg(rawE, bufE, idxE, sumE);
 
-  // Normalize each channel to 0-100
-  int normF = normalizeChannel(avgF, normBufF);
-  int normP = normalizeChannel(avgP, normBufP);
-  int normE = normalizeChannel(avgE, normBufE);
+    // Normalize each channel to 0-100
+    int normF = normalizeChannel(avgF, normBufF);
+    int normP = normalizeChannel(avgP, normBufP);
+    int normE = normalizeChannel(avgE, normBufE);
 
-  // Advance shared normalization index
-  normIdx = (normIdx + 1) % NORM_N;
+    // Advance shared normalization index
+    normIdx = (normIdx + 1) % NORM_N;
 
-  // Classify gesture from normalized values
-  Gesture g = classifyGesture(normF, normP, normE);
+    // Classify gesture from normalized values
+    Gesture g = classifyGesture(normF, normP, normE);
 
-  // Output: raw values + gesture label + sample counter
-  if (counter <= datasetSize) {
-    Serial.print(rawF);
-    Serial.print(", ");
-    Serial.print(rawP);
-    Serial.print(", ");
-    Serial.print(rawE);
-    Serial.print(", ");
+    // serial print only gesture label
     Serial.print(gestureName(g));
-    Serial.print(", ");
-    Serial.println(counter);
-    counter++;
-  }
   
-  delay(delayTime);
+    delay(delayTime);
 }
