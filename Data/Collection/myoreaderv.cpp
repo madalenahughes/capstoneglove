@@ -26,6 +26,8 @@ int normIdx = 0;
 const int TH_FIST      = 50;
 const int TH_PINCH     = 50;
 const int TH_EXTENSION = 50;
+// sample count
+int timeCount = 0;
 // TODO: add thresholds for remaining gestures after dataset analysis
 
 enum Gesture { REST=0, FIST=1, PINCH=2, MIDDLE_PINCH=3, PEACE=4, 
@@ -126,7 +128,8 @@ void loop() {
   mySerial.println((int)g);  // to Pi
   Serial.println(gestureName(g));    // to computer for debugging
   Serial.print(", ");
-  Serial.print(sampleTime());
+  Serial.print(timeCount());
+  timeCount ++;
 
   delay(delayTime);
 }
