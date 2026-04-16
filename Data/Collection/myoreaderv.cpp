@@ -28,7 +28,12 @@ const int TH_PINCH     = 50;
 const int TH_EXTENSION = 50;
 // TODO: add thresholds for remaining gestures after dataset analysis
 
-enum Gesture { REST, FIST, PINCH, MIDDLE_PINCH, PEACE, THUMBS_UP, POINT, THUMB, INDEX, MIDDLE, RING, PINKY, EXTENSION };
+enum Gesture { REST=0, FIST=1, PINCH=2, MIDDLE_PINCH=3, PEACE=4, 
+               THUMBS_UP=5, POINT=6, THUMB=7, INDEX=8, MIDDLE=9, 
+               RING=10, PINKY=11, EXTENSION=12 };
+
+// In loop(), replace gestureName(g) with:
+mySerial.println((int)g);
 
 int updateAvg(int raw, int *buf, int &idx, long &sum) {
   sum -= buf[idx];
@@ -118,8 +123,10 @@ void loop() {
 
   Gesture g = classifyGesture(normF, normP, normE);
 
-  mySerial.println(gestureName(g));  // to Pi
+  mySerial.println((int)g);  // to Pi
   Serial.println(gestureName(g));    // to computer for debugging
+  Serial.print(", ");
+  Serial.print(sampleTime());
 
   delay(delayTime);
 }
