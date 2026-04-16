@@ -79,28 +79,29 @@ Gesture classifyGesture(int nF, int nP, int nE) {
 
 const char* gestureName(Gesture g) {
   switch (g) {
-    case FIST:          return "FIST";
-    case PINCH:         return "PINCH";
-    case MIDDLE-PINCH:  return "MIDDLE-PINCH";
-    case PEACE:         return "PEACE";
-    case THUMBS-UP:     return "THUMBS-UP";
-    case POINT:         return "POINT";
-    case THUMB:         return "THUMB";
-    case INDEX:         return "INDEX";
-    case MIDDLE:        return "MIDDLE";
-    case RING:          return "RING";
-    case PINKY:         return "PINKY";
-    case REST:          return "REST";
+    case FIST:         return "FIST";
+    case PINCH:        return "PINCH";
+    case MIDDLE_PINCH: return "MIDDLE-PINCH";
+    case PEACE:        return "PEACE";
+    case THUMBS_UP:    return "THUMBS-UP";
+    case POINT:        return "POINT";
+    case THUMB:        return "THUMB";
+    case INDEX:        return "INDEX";
+    case MIDDLE:       return "MIDDLE";
+    case RING:         return "RING";
+    case PINKY:        return "PINKY";
+    case EXTENSION:    return "EXTENSION";
+    case REST:         return "REST";
   }
   return "UNKNOWN";
 }
 
 void setup() {
-  Serial.begin(115200);
-  Serial.println("rawF, rawP, rawE, gesture, sample");
+  Serial.begin(115200);                        // USB — for debugging on computer
+  mySerial.begin(115200, SERIAL_8N1, -1, 17); // UART2 GPIO17 — to Pi
 }
 
-  while (counter <= datasetSize) {
+void loop() {
   int rawF = analogRead(FIST_PIN);
   int rawP = analogRead(PINCH_PIN);
   int rawE = analogRead(EXTENSION_PIN);
@@ -117,19 +118,8 @@ void setup() {
 
   Gesture g = classifyGesture(normF, normP, normE);
 
-  // Output: raw values + gesture label + sample counter
-  if (counter <= datasetSize) {
-    Serial.print(rawF);
-    Serial.print(", ");
-    Serial.print(rawP);
-    Serial.print(", ");
-    Serial.print(rawE);
-    Serial.print(", ");
-    Serial.print(gestureName(g));
-    Serial.print(", ");
-    Serial.println(counter);
-    counter++;
-  }
-  
+  mySerial.println(gestureName(g));  // to Pi
+  Serial.println(gestureName(g));    // to computer for debugging
+
   delay(delayTime);
 }
