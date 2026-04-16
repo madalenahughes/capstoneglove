@@ -3,10 +3,10 @@ import csv
 import sys
 from datetime import datetime
 
-PORT = "/dev/cu.usbserial-02706966"  # change to your ESP32 port
+PORT = "COM3"  # change to your ESP32 port
 BAUD = 115200
 OUTPUT_FILE = f"emg_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-HEADER = ["fist", "pinch", "extension", "sample"]
+HEADER = ["fist", "pinch", "extension", "gesture", "sample"]
 
 def main():
     print(f"Opening port {PORT} at {BAUD} baud...")
@@ -30,7 +30,7 @@ def main():
                 print("Done — data collection complete.")
                 break
             parts = [p.strip() for p in line.split(",")]
-            if len(parts) == 4:
+            if len(parts) == 5:
                 writer.writerow(parts)
                 f.flush()
                 print(parts)
