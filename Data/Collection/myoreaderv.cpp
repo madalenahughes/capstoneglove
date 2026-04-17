@@ -35,7 +35,7 @@ enum Gesture { REST=0, FIST=1, PINCH=2, MIDDLE_PINCH=3, PEACE=4,
                RING=10, PINKY=11, EXTENSION=12 };
 
 // In loop(), replace gestureName(g) with:
-mySerial.println((int)g);
+  //Serial.println(g);
 
 int updateAvg(int raw, int *buf, int &idx, long &sum) {
   sum -= buf[idx];
@@ -125,10 +125,10 @@ void loop() {
 
   Gesture g = classifyGesture(normF, normP, normE);
 
-  mySerial.println((int)g);  // to Pi
-  Serial.println(gestureName(g));    // to computer for debugging
+  mySerial.println(gestureName(g));  // ← send to Pi
+  Serial.println(gestureName(g));    // ← keep for USB debugging
   Serial.print(", ");
-  Serial.print(timeCount);
+  Serial.println(timeCount);
   timeCount ++;
 
   delay(delayTime);
