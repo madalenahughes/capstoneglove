@@ -120,7 +120,7 @@ try:
     while True:
         if uart.in_waiting > 0:
             raw = uart.readline()
-            handSignal = raw.decode('utf-8').strip()  # Decode bytes and strip whitespace/newline
+            handSignal = raw.decode('utf-8').strip().lower()  # Decode bytes and strip whitespace/newline
 
             if handSignal:
                 print(f"Received: '{handSignal}'")
@@ -129,4 +129,3 @@ try:
 except KeyboardInterrupt:
     print("Exiting...")
     uart.close()
-
