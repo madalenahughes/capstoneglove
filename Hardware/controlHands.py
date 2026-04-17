@@ -12,7 +12,7 @@ pca.frequency = 50
 # Initialize UART as the serial on GPIO 15
 uart = serial.Serial(
     port='/dev/serial0',
-    baudrate=9600,        # TODO: Make sure the baud rate is the same as the one on the esp
+    baudrate=115200,        # TODO: Make sure the baud rate is the same as the one on the esp
     timeout=0.1           # Non-blocking: returns after 0.1s if no data
 )
 
@@ -93,7 +93,7 @@ print("Starting up - rest position")
 applyMotors(motors)
 time.sleep(1)
 
-
+"""
 # The current test code for each case...comment out when using ESP integration
 runStart = input("Enter Case: ")
 
@@ -110,9 +110,9 @@ while runStart != "quit":
 	#runStart = "quit"
 
 input("Exiting...")
-
-
 """
+
+
 # Listens for signals from the ESP and will continuously run until interrupted by the keyboard...uncomment when using ESP integration
 print("Listening for signals on GPIO 15...")
 
@@ -129,4 +129,4 @@ try:
 except KeyboardInterrupt:
     print("Exiting...")
     uart.close()
-"""
+
