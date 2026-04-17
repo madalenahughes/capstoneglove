@@ -128,7 +128,7 @@ void loop() {
   mySerial.println((int)g);  // to Pi
   Serial.println(gestureName(g));    // to computer for debugging
   Serial.print(", ");
-  Serial.print(timeCount());
+  Serial.print(timeCount);
   timeCount ++;
 
   delay(delayTime);
