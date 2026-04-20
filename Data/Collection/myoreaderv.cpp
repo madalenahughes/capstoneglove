@@ -30,9 +30,24 @@ const int TH_EXTENSION = 50;
 int timeCount = 0;
 // TODO: add thresholds for remaining gestures after dataset analysis
 
-enum Gesture { REST=0, FIST=1, PINCH=2, MIDDLE_PINCH=3, PEACE=4, 
-               THUMBS_UP=5, POINT=6, THUMB=7, INDEX=8, MIDDLE=9, 
-               RING=10, PINKY=11, EXTENSION=12 };
+enum Gesture {
+  REST = 0,
+  FIST,
+  PINCH,
+  EXTENSION,
+  PEACE,
+  POINT,
+  THUMB,
+  INDEX_FINGER,
+  MIDDLE,
+  RING,
+  PINKY,
+  OKTH,
+  MIDTH,
+  TWISTLEFT,
+  TWISTRIGHT
+};
+
 
 // In loop(), replace gestureName(g) with:
   //Serial.println(g);
@@ -58,28 +73,40 @@ int normalizeChannel(int avg, int *normBuf) {
   return (int)((float)(avg - mn) / (mx - mn) * 100);
 }
 
-Gesture classifyGesture(int nF, int nP, int nE) {
-  bool fistHigh      = nF > TH_FIST;
-  bool pinchHigh     = nP > TH_PINCH;
-  bool extensionHigh = nE > TH_EXTENSION;
+Gesture classifyGesture(int F, int P, int E) {
+  // Check in priority order — most distinctive first
 
-  if (!fistHigh && !pinchHigh && !extensionHigh) return REST;
+  // TWISTLEFT: F spikes dramatically (mean ~383, others ~80-170)
+  if (F > 250) return TWISTLEFT;
 
-  // Implemented
-  if (nF >= nP && nF >= nE && fistHigh)      return FIST;
-  if (nP >= nF && nP >= nE && pinchHigh)     return PINCH;
-  if (nE >= nF && nE >= nP && extensionHigh) return EXTENSION;
+  // POINT: E very high (mean ~546)
+  if (E > 490) return POINT;
 
-  // TODO: implement thresholds for these gestures after dataset analysis
-  // if (...) return MIDDLE_PINCH;
-  // if (...) return PEACE;
-  // if (...) return THUMBS_UP;
-  // if (...) return POINT;
-  // if (...) return THUMB;
-  // if (...) return INDEX;
-  // if (...) return MIDDLE;
-  // if (...) return RING;
-  // if (...) return PINKY;
+  // Finger isolation gestures — P is LOW (they have small/no pinch activation)
+  // and E is HIGH (extension electrodes active)
+  if (E > 340 && P < 260)              return PINKY;
+  if (E > 310 && P < 280)              return RING;
+  if (E > 300 && P < 290 && F < 120)  return MIDDLE;
+
+  // OKTH (OK thumb): high E, slightly higher P than RING/PINKY
+  if (E > 370 && P < 330)             return OKTH;
+
+  // INDEX: high P, moderate-high E
+  if (P > 430 && E > 280 && E < 450)  return INDEX_FINGER;
+
+  // THUMB: high P, moderate E, F elevated
+  if (P > 400 && E >= 230 && E < 380 && F > 120) return THUMB;
+
+  // MIDTH: moderate E, moderate P
+  if (E >= 230 && E < 320 && P > 350) return MIDTH;
+
+  // PEACE: moderate E, moderate P
+  if (E >= 220 && E < 310 && P > 300 && P < 420) return PEACE;
+
+  // Core 3 gestures
+  if (P > 420 && E < 235)             return FIST;
+  if (E >= 190 && E < 230 && F < 180) return EXTENSION;
+  if (P > 340 && P < 430 && E < 200 && F < 145) return PINCH;
 
   return REST;
 }
