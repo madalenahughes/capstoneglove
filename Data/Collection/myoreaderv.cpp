@@ -100,7 +100,7 @@ Gesture classifyGesture(int F, int P, int E) {
   if (E >= 220 && E < 310 && P > 300 && P < 420) return PEACE;
 
   // POINT: moderate E, high P
-  if (E >= 220 && E < 310 && P > 420) return POINT
+  if (E >= 220 && E < 310 && P > 420) return POINT;
 
   // FIST: high P, low E
   if (P > 420 && E < 235)             return FIST;
