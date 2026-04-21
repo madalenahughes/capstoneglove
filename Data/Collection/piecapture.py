@@ -4,21 +4,21 @@ import serial
 SERIAL_PORT = '/dev/serial0'
 BAUD_RATE   = 115200
 
-# Valid gesture labels matching ESP32 gestureName() output
-VALID_GESTURES = {
-    "FIST",
-    "PINCH",
-    "MIDDLE-PINCH",
-    "PEACE",
-    "THUMBS-UP",
-    "POINT",
-    "THUMB",
-    "INDEX",
-    "MIDDLE",
-    "RING",
-    "PINKY",
-    "EXTENSION",
-    "REST"
+# --- Gesture map: integer code from ESP32 → label ---
+GESTURE_MAP = {
+    0:  "REST",
+    1:  "FIST",
+    2:  "PINCH",
+    3:  "MIDDLE-PINCH",
+    4:  "PEACE",
+    5:  "THUMBS-UP",
+    6:  "POINT",
+    7:  "THUMB",
+    8:  "INDEX",
+    9:  "MIDDLE",
+    10: "RING",
+    11: "PINKY",
+    12: "EXTENSION"
 }
 
 def handle_gesture(gesture: str):
@@ -76,11 +76,19 @@ def main():
             if not line:
                 continue  # skip empty lines
 
-            if line not in VALID_GESTURES:
-                continue  # discard garbled or partial lines
+            # Parse integer code from ESP32
+            try:
+                code = int(line)
+            except ValueError:
+                continue  # discard non-integer lines (e.g. boot messages)
 
-            print(f"Gesture: {line}")
-            handle_gesture(line)
+            # Look up gesture label
+            gesture = GESTURE_MAP.get(code)
+            if gesture is None:
+                continue  # discard unknown codes
+
+            print(f"Gesture: {gesture}")
+            handle_gesture(gesture)
 
         except serial.SerialException as e:
             print(f"Serial error: {e}")
