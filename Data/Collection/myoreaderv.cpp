@@ -28,24 +28,26 @@ const int TH_PINCH     = 50;
 const int TH_EXTENSION = 50;
 // sample count
 int timeCount = 0;
+
+// --- Batch averaging before classification ---
+const int BATCH_N = 10;
+int batchCount = 0;
+long batchSumF = 0, batchSumP = 0, batchSumE = 0;
 // TODO: add thresholds for remaining gestures after dataset analysis
 
 enum Gesture {
   REST = 0,
   FIST,
   PINCH,
-  EXTENSION,
   PEACE,
   POINT,
-  THUMB,
-  INDEX_FINGER,
-  MIDDLE,
-  RING,
-  PINKY,
+  THUMB_FLEX,
+  INDEX_FLEX,
+  MIDDLE_FLEX,
+  RING_FLEX,
+  PINKY_FLEX,
   OKTH,
   MIDTH,
-  TWISTLEFT,
-  TWISTRIGHT
 };
 
 
@@ -76,26 +78,20 @@ int normalizeChannel(int avg, int *normBuf) {
 Gesture classifyGesture(int F, int P, int E) {
   // Check in priority order — most distinctive first
 
-  // TWISTLEFT: F spikes dramatically (mean ~383, others ~80-170)
-  if (F > 250) return TWISTLEFT;
-
-  // POINT: E very high (mean ~546)
-  if (E > 490) return POINT;
-
   // Finger isolation gestures — P is LOW (they have small/no pinch activation)
   // and E is HIGH (extension electrodes active)
-  if (E > 340 && P < 260)              return PINKY;
-  if (E > 310 && P < 280)              return RING;
-  if (E > 300 && P < 290 && F < 120)  return MIDDLE;
+  if (E > 340 && P < 260)              return PINKY_FLEX;
+  if (E > 310 && P < 280)              return RING_FLEX;
+  if (E > 300 && P < 290 && F < 120)  return MIDDLE_FLEX;
 
   // OKTH (OK thumb): high E, slightly higher P than RING/PINKY
   if (E > 370 && P < 330)             return OKTH;
 
   // INDEX: high P, moderate-high E
-  if (P > 430 && E > 280 && E < 450)  return INDEX_FINGER;
+  if (P > 430 && E > 280 && E < 450)  return INDEX_FLEX;
 
   // THUMB: high P, moderate E, F elevated
-  if (P > 400 && E >= 230 && E < 380 && F > 120) return THUMB;
+  if (P > 400 && E >= 230 && E < 380 && F > 120) return THUMB_FLEX;
 
   // MIDTH: moderate E, moderate P
   if (E >= 230 && E < 320 && P > 350) return MIDTH;
@@ -103,9 +99,13 @@ Gesture classifyGesture(int F, int P, int E) {
   // PEACE: moderate E, moderate P
   if (E >= 220 && E < 310 && P > 300 && P < 420) return PEACE;
 
-  // Core 3 gestures
+  // POINT: moderate E, high P
+  if (E >= 220 && E < 310 && P > 420) return POINT
+
+  // FIST: high P, low E
   if (P > 420 && E < 235)             return FIST;
-  if (E >= 190 && E < 230 && F < 180) return EXTENSION;
+
+  // PINCH: moderate P, low E, low F
   if (P > 340 && P < 430 && E < 200 && F < 145) return PINCH;
 
   return REST;
@@ -113,19 +113,18 @@ Gesture classifyGesture(int F, int P, int E) {
 
 const char* gestureName(Gesture g) {
   switch (g) {
-    case FIST:         return "FIST";
-    case PINCH:        return "PINCH";
-    case MIDDLE_PINCH: return "MIDDLE-PINCH";
-    case PEACE:        return "PEACE";
-    case THUMBS_UP:    return "THUMBS-UP";
-    case POINT:        return "POINT";
-    case THUMB:        return "THUMB";
-    case INDEX:        return "INDEX";
-    case MIDDLE:       return "MIDDLE";
-    case RING:         return "RING";
-    case PINKY:        return "PINKY";
-    case EXTENSION:    return "EXTENSION";
-    case REST:         return "REST";
+    case FIST:          return "FIST";
+    case PINCH:         return "PINCH";
+    case MIDTH:         return "MIDDLE-PINCH";
+    case PEACE:         return "PEACE";
+    case OKTH:          return "THUMBS-UP";
+    case POINT:         return "POINT";
+    case THUMB_FLEX:    return "THUMB";
+    case INDEX_FLEX:    return "INDEX";
+    case MIDDLE_FLEX:   return "MIDDLE";
+    case RING_FLEX:     return "RING";
+    case PINKY_FLEX:    return "PINKY";
+    case REST:          return "REST";
   }
   return "UNKNOWN";
 }
@@ -150,13 +149,31 @@ void loop() {
 
   normIdx = (normIdx + 1) % NORM_N;
 
-  Gesture g = classifyGesture(normF, normP, normE);
+  batchSumF += normF;
+  batchSumP += normP;
+  batchSumE += normE;
+  batchCount++;
 
-  mySerial.println(gestureName(g));  // ← send to Pi
-  Serial.println(gestureName(g));    // ← keep for USB debugging
-  Serial.print(", ");
-  Serial.println(timeCount);
-  timeCount ++;
+  if (batchCount >= BATCH_N) {
+    int batchF = (int)(batchSumF / BATCH_N);
+    int batchP = (int)(batchSumP / BATCH_N);
+    int batchE = (int)(batchSumE / BATCH_N);
+
+    Gesture g = classifyGesture(batchF, batchP, batchE);
+
+    mySerial.println(gestureName(g));
+    Serial.print(gestureName(g));
+
+    batchSumF = 0; batchSumP = 0; batchSumE = 0;
+    batchCount = 0;
+  }
+
+  Serial.print(rawF);
+  Serial.print(", "); Serial.print(rawP);
+  Serial.print(", "); Serial.print(rawE);
+  Serial.print(", "); Serial.println(timeCount);
+
+  timeCount++;
 
   delay(delayTime);
 }
