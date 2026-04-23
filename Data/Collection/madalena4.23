@@ -29,8 +29,10 @@ int idxF = 0, idxP = 0, idxE = 0;
 long sumF = 0, sumP = 0, sumE = 0;
 
 // =========================
-// Gesture enum
+// Gesture averaging buffer
 // =========================
+const int GESTURE_AVG_N = 10;
+
 enum Gesture {
   REST = 0,
   FIST,
@@ -46,14 +48,8 @@ enum Gesture {
   MIDTH,
 };
 
-// =========================
-// Debounce / stability
-// =========================
-const int REQUIRED_CONSECUTIVE = 3;
-
-Gesture stableGesture = REST;
-Gesture pendingGesture = REST;
-int pendingCount = 0;
+Gesture gestureBuf[GESTURE_AVG_N];
+int gestureIdx = 0;
 
 // =========================
 // Helpers
@@ -85,7 +81,7 @@ const char* gestureName(Gesture g) {
 }
 
 // =========================
-// Classifier (unchanged)
+// Classifier
 // =========================
 Gesture classifyGesture(int F, int F_std, int P, int P_std, int E, int E_std) {
 
@@ -117,30 +113,33 @@ Gesture classifyGesture(int F, int F_std, int P, int P_std, int E, int E_std) {
 }
 
 // =========================
-// Stabilizer
+// Gesture averaging (majority vote)
 // =========================
-Gesture stabilizeGesture(Gesture candidate) {
+Gesture getAveragedGesture(Gesture newGesture) {
 
-  if (candidate == stableGesture) {
-    pendingGesture = candidate;
-    pendingCount = 0;
-    return stableGesture;
+  // Insert into circular buffer
+  gestureBuf[gestureIdx] = newGesture;
+  gestureIdx = (gestureIdx + 1) % GESTURE_AVG_N;
+
+  // Count occurrences
+  int counts[12] = {0};
+
+  for (int i = 0; i < GESTURE_AVG_N; i++) {
+    counts[gestureBuf[i]]++;
   }
 
-  if (candidate != pendingGesture) {
-    pendingGesture = candidate;
-    pendingCount = 1;
-    return stableGesture;
+  // Find most frequent
+  int maxCount = 0;
+  Gesture bestGesture = REST;
+
+  for (int i = 0; i < 12; i++) {
+    if (counts[i] > maxCount) {
+      maxCount = counts[i];
+      bestGesture = (Gesture)i;
+    }
   }
 
-  pendingCount++;
-
-  if (pendingCount >= REQUIRED_CONSECUTIVE) {
-    stableGesture = pendingGesture;
-    pendingCount = 0;
-  }
-
-  return stableGesture;
+  return bestGesture;
 }
 
 // =========================
@@ -149,6 +148,11 @@ Gesture stabilizeGesture(Gesture candidate) {
 void setup() {
   Serial.begin(115200);
   mySerial.begin(115200, SERIAL_8N1, -1, 17);
+
+  // Initialize gesture buffer to REST
+  for (int i = 0; i < GESTURE_AVG_N; i++) {
+    gestureBuf[i] = REST;
+  }
 }
 
 // =========================
@@ -161,7 +165,7 @@ void loop() {
   int rawP = analogRead(PINCH_PIN);
   int rawE = analogRead(EXTENSION_PIN);
 
-  // --- OPTIONAL: EMG rectification ---
+  // --- Optional EMG rectification ---
   // rawF = abs(rawF);
   // rawP = abs(rawP);
   // rawE = abs(rawE);
@@ -171,23 +175,11 @@ void loop() {
   int avgP = updateAvg(rawP, bufP, idxP, sumP);
   int avgE = updateAvg(rawE, bufE, idxE, sumE);
 
-  // --- OPTIONAL: EMA instead (comment out moving avg above if used) ---
-  /*
-  static float emaF = 0, emaP = 0, emaE = 0;
-  float alpha = 0.2;
-
-  emaF = alpha * rawF + (1 - alpha) * emaF;
-  emaP = alpha * rawP + (1 - alpha) * emaP;
-  emaE = alpha * rawE + (1 - alpha) * emaE;
-
-  int avgF = (int)emaF;
-  int avgP = (int)emaP;
-  int avgE = (int)emaE;
-  */
-
   // --- Real-time classification ---
   Gesture candidate = classifyGesture(avgF, 0, avgP, 0, avgE, 0);
-  Gesture outputGesture = stabilizeGesture(candidate);
+
+  // --- Averaged output gesture ---
+  Gesture outputGesture = getAveragedGesture(candidate);
 
   // --- Send to Pi ---
   mySerial.println(gestureName(outputGesture));
