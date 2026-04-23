@@ -53,8 +53,6 @@ enum Gesture {
   PINKY,
   OKTH,
   MIDTH,
-  TWISTLEFT,
-  TWISTRIGHT
 };
 
 // =========================
@@ -98,8 +96,6 @@ const char* gestureName(Gesture g) {
     case PINKY:      return "PINKY";
     case OKTH:       return "OKTH";
     case MIDTH:      return "MIDTH";
-    case TWISTLEFT:  return "TWISTLEFT";
-    case TWISTRIGHT: return "TWISTRIGHT";
   }
   return "UNKNOWN";
 }
@@ -124,10 +120,6 @@ Gesture classifyGesture(int F, int F_std, int P, int P_std, int E, int E_std) {
   // 2) Very distinct gestures first
   if (F > 120) {
     return RING;
-  }
-
-  if (E > 45 && P < 380) {
-    return TWISTLEFT;
   }
 
   if (P > 500 && E > 25) {
@@ -157,10 +149,6 @@ Gesture classifyGesture(int F, int F_std, int P, int P_std, int E, int E_std) {
 
   if (F > 35 && F < 58 && E < 12 && P > 280 && P < 365) {
     return PEACE;
-  }
-
-  if (F > 45 && P > 350 && E > 10 && E < 60) {
-    return TWISTRIGHT;
   }
 
   // 4) Optional legacy classes
