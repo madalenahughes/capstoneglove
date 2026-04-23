@@ -1,0 +1,276 @@
+#include <Arduino.h>
+#include <HardwareSerial.h>
+#include <math.h>
+
+// =========================
+// Sensor pins
+// =========================
+const int FIST_PIN      = 34;
+const int PINCH_PIN     = 39;
+const int EXTENSION_PIN = 36;
+
+const int delayTime = 50;   // ms between reads
+
+// =========================
+// UART2 to Raspberry Pi
+// =========================
+HardwareSerial mySerial(2);
+
+// =========================
+// Moving average smoothing
+// =========================
+const int AVG_N = 20;
+
+int bufF[AVG_N] = {0};
+int bufP[AVG_N] = {0};
+int bufE[AVG_N] = {0};
+
+int idxF = 0, idxP = 0, idxE = 0;
+long sumF = 0, sumP = 0, sumE = 0;
+
+// =========================
+// Batch stats for classifier
+// =========================
+const int BATCH_N = 10;
+
+int batchCount = 0;
+long batchSumF = 0, batchSumP = 0, batchSumE = 0;
+long batchSumSqF = 0, batchSumSqP = 0, batchSumSqE = 0;
+
+// =========================
+// Gesture enum
+// =========================
+enum Gesture {
+  REST = 0,
+  FIST,
+  PINCH,
+  PEACE,
+  POINT,
+  THUMB,
+  INDEX,
+  MIDDLE,
+  RING,
+  PINKY,
+  OKTH,
+  MIDTH,
+  TWISTLEFT,
+  TWISTRIGHT
+};
+
+// =========================
+// Debounce / stability
+// Only switch after seeing the
+// same candidate this many times
+// =========================
+const int REQUIRED_CONSECUTIVE = 2;
+Gesture stableGesture = REST;
+Gesture pendingGesture = REST;
+int pendingCount = 0;
+
+// =========================
+// Helpers
+// =========================
+int updateAvg(int raw, int *buf, int &idx, long &sum) {
+  sum -= buf[idx];
+  buf[idx] = raw;
+  sum += raw;
+  idx = (idx + 1) % AVG_N;
+  return (int)(sum / AVG_N);
+}
+
+int computeStd(long sumSq, int mean, int n) {
+  float var = ((float)sumSq / n) - ((float)mean * mean);
+  if (var < 0) var = 0;
+  return (int)sqrt(var);
+}
+
+const char* gestureName(Gesture g) {
+  switch (g) {
+    case REST:       return "REST";
+    case FIST:       return "FIST";
+    case PINCH:      return "PINCH";
+    case PEACE:      return "PEACE";
+    case POINT:      return "POINT";
+    case THUMB:      return "THUMB";
+    case INDEX:      return "INDEX";
+    case MIDDLE:     return "MIDDLE";
+    case RING:       return "RING";
+    case PINKY:      return "PINKY";
+    case OKTH:       return "OKTH";
+    case MIDTH:      return "MIDTH";
+    case TWISTLEFT:  return "TWISTLEFT";
+    case TWISTRIGHT: return "TWISTRIGHT";
+  }
+  return "UNKNOWN";
+}
+
+// =========================
+// Classifier
+//
+// Inputs are batch means/stds from
+// your 10-block features.
+//
+// This version prioritizes gestures
+// that look most separable first.
+// =========================
+Gesture classifyGesture(int F, int F_std, int P, int P_std, int E, int E_std) {
+
+  // 1) Strong REST gate first
+  // If all channels are pretty quiet, call it REST.
+  if (F < 18 && P < 220 && E < 3) {
+    return REST;
+  }
+
+  // 2) Very distinct gestures first
+  if (F > 120) {
+    return RING;
+  }
+
+  if (E > 45 && P < 380) {
+    return TWISTLEFT;
+  }
+
+  if (P > 500 && E > 25) {
+    return PINKY;
+  }
+
+  if (P > 350 && E < 25 && F < 105) {
+    return INDEX;
+  }
+
+  if (P < 230 && E < 10) {
+    return POINT;
+  }
+
+  // 3) Narrower overlapping gestures
+  if (F < 32 && E < 3 && P > 255 && P < 320) {
+    return PINCH;
+  }
+
+  if (F > 18 && F < 42 && E > 12 && P > 160 && P < 285) {
+    return FIST;
+  }
+
+  if (F > 18 && F < 40 && E > 6 && E < 25 && P > 185 && P < 255) {
+    return OKTH;
+  }
+
+  if (F > 35 && F < 58 && E < 12 && P > 280 && P < 365) {
+    return PEACE;
+  }
+
+  if (F > 45 && P > 350 && E > 10 && E < 60) {
+    return TWISTRIGHT;
+  }
+
+  // 4) Optional legacy classes
+  // These are more overlapped, so keep them later.
+  if (F < 30 && E < 2 && P > 240 && P < 280) {
+    return MIDTH;
+  }
+
+  if (F > 30 && F < 55 && E < 5 && P > 280 && P < 340) {
+    return MIDDLE;
+  }
+
+  if (F > 25 && F < 60 && E > 5 && E < 20 && P > 210 && P < 270) {
+    return THUMB;
+  }
+
+  return REST;
+}
+
+// =========================
+// Consecutive-vote stabilizer
+// =========================
+Gesture stabilizeGesture(Gesture candidate) {
+  if (candidate == stableGesture) {
+    pendingGesture = candidate;
+    pendingCount = 0;
+    return stableGesture;
+  }
+
+  if (candidate != pendingGesture) {
+    pendingGesture = candidate;
+    pendingCount = 1;
+    return stableGesture;
+  }
+
+  pendingCount++;
+
+  if (pendingCount >= REQUIRED_CONSECUTIVE) {
+    stableGesture = pendingGesture;
+    pendingCount = 0;
+  }
+
+  return stableGesture;
+}
+
+void setup() {
+  Serial.begin(115200);                       // USB debug
+  mySerial.begin(115200, SERIAL_8N1, -1, 17); // UART2 TX on GPIO17
+}
+
+void loop() {
+  // Raw reads
+  int rawF = analogRead(FIST_PIN);
+  int rawP = analogRead(PINCH_PIN);
+  int rawE = analogRead(EXTENSION_PIN);
+
+  // Smoothed values
+  int avgF = updateAvg(rawF, bufF, idxF, sumF);
+  int avgP = updateAvg(rawP, bufP, idxP, sumP);
+  int avgE = updateAvg(rawE, bufE, idxE, sumE);
+
+  // Accumulate batch stats
+  batchSumF += avgF;
+  batchSumP += avgP;
+  batchSumE += avgE;
+
+  batchSumSqF += (long)avgF * avgF;
+  batchSumSqP += (long)avgP * avgP;
+  batchSumSqE += (long)avgE * avgE;
+
+  batchCount++;
+
+  if (batchCount >= BATCH_N) {
+    int batchF = (int)(batchSumF / BATCH_N);
+    int batchP = (int)(batchSumP / BATCH_N);
+    int batchE = (int)(batchSumE / BATCH_N);
+
+    int stdF = computeStd(batchSumSqF, batchF, BATCH_N);
+    int stdP = computeStd(batchSumSqP, batchP, BATCH_N);
+    int stdE = computeStd(batchSumSqE, batchE, BATCH_N);
+
+    Gesture candidate = classifyGesture(batchF, stdF, batchP, stdP, batchE, stdE);
+    Gesture outputGesture = stabilizeGesture(candidate);
+
+    // Send just the stable label to Pi
+    mySerial.println(gestureName(outputGesture));
+
+    // Debug output to Serial Monitor
+    Serial.print("F=");
+    Serial.print(batchF);
+    Serial.print(" (");
+    Serial.print(stdF);
+    Serial.print("), P=");
+    Serial.print(batchP);
+    Serial.print(" (");
+    Serial.print(stdP);
+    Serial.print("), E=");
+    Serial.print(batchE);
+    Serial.print(" (");
+    Serial.print(stdE);
+    Serial.print(") -> cand=");
+    Serial.print(gestureName(candidate));
+    Serial.print(" -> out=");
+    Serial.println(gestureName(outputGesture));
+
+    // Reset batch
+    batchSumF = batchSumP = batchSumE = 0;
+    batchSumSqF = batchSumSqP = batchSumSqE = 0;
+    batchCount = 0;
+  }
+
+  delay(delayTime);
+}
