@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
+#include <math.h>
 
 // Sensor pins
 const int FIST_PIN      = 34;
@@ -22,18 +23,14 @@ const int NORM_N = 100;
 int normBufF[NORM_N], normBufP[NORM_N], normBufE[NORM_N];
 int normIdx = 0;
 
-// --- Thresholds on normalized 0-100 scale ---
-const int TH_FIST      = 50;
-const int TH_PINCH     = 50;
-const int TH_EXTENSION = 50;
 // sample count
 int timeCount = 0;
 
-// --- Batch averaging before classification ---
+// --- Batch averaging before classification (raw ADC scale) ---
 const int BATCH_N = 10;
 int batchCount = 0;
 long batchSumF = 0, batchSumP = 0, batchSumE = 0;
-// TODO: add thresholds for remaining gestures after dataset analysis
+long batchSumSqF = 0, batchSumSqP = 0, batchSumSqE = 0;
 
 enum Gesture {
   REST = 0,
@@ -41,18 +38,14 @@ enum Gesture {
   PINCH,
   PEACE,
   POINT,
-  THUMB_FLEX,
-  INDEX_FLEX,
-  MIDDLE_FLEX,
-  RING_FLEX,
-  PINKY_FLEX,
+  THUMB,
+  INDEX,
+  MIDDLE,
+  RING,
+  PINKY,
   OKTH,
   MIDTH,
 };
-
-
-// In loop(), replace gestureName(g) with:
-  //Serial.println(g);
 
 int updateAvg(int raw, int *buf, int &idx, long &sum) {
   sum -= buf[idx];
@@ -75,56 +68,44 @@ int normalizeChannel(int avg, int *normBuf) {
   return (int)((float)(avg - mn) / (mx - mn) * 100);
 }
 
-Gesture classifyGesture(int F, int P, int E) {
-  // Check in priority order — most distinctive first
-
-  // Finger isolation gestures — P is LOW (they have small/no pinch activation)
-  // and E is HIGH (extension electrodes active)
-  if (E > 340 && P < 260)              return PINKY_FLEX;
-  if (E > 310 && P < 280)              return RING_FLEX;
-  if (E > 300 && P < 290 && F < 120)  return MIDDLE_FLEX;
-
-  // OKTH (OK thumb): high E, slightly higher P than RING/PINKY
-  if (E > 370 && P < 330)             return OKTH;
-
-  // INDEX: high P, moderate-high E
-  if (P > 430 && E > 280 && E < 450)  return INDEX_FLEX;
-
-  // THUMB: high P, moderate E, F elevated
-  if (P > 400 && E >= 230 && E < 380 && F > 120) return THUMB_FLEX;
-
-  // MIDTH: moderate E, moderate P
-  if (E >= 230 && E < 320 && P > 350) return MIDTH;
-
-  // PEACE: moderate E, moderate P
-  if (E >= 220 && E < 310 && P > 300 && P < 420) return PEACE;
-
-  // POINT: moderate E, high P
-  if (E >= 220 && E < 310 && P > 420) return POINT
-
-  // FIST: high P, low E
-  if (P > 420 && E < 235)             return FIST;
-
-  // PINCH: moderate P, low E, low F
-  if (P > 340 && P < 430 && E < 200 && F < 145) return PINCH;
-
-  return REST;
+// Thresholds derived from Nathan's EMG dataset (batch means of 20-sample moving
+// averages, raw ADC units). E channel is the primary discriminator.
+Gesture classifyGesture(int F, int F_std, int P, int P_std, int E, int E_std) {
+  if (E < 220) {
+    if (P > 360)  return PINCH;   // very high P, very low E
+    if (P > 310)  return FIST;    // high P, low E
+    return REST;
+  }
+  if (E < 290) {
+    if (P > 325)  return MIDTH;   // medium E, high P
+    if (P > 290)  return PEACE;   // medium E, medium P
+    return OKTH;                   // medium E, low P
+  }
+  if (E < 335) {
+    if (P > 305)  return INDEX;   // medium-high E, medium-high P
+    if (F < 93)   return MIDDLE;  // medium-high E, low P, low F
+    return THUMB;                  // medium-high E, low P, higher F
+  }
+  // E >= 335
+  if (P > 385)    return PINKY;   // very high E and P
+  if (F > 130)    return POINT;   // very high E, high F
+  return RING;                     // high E, lower P and F
 }
 
 const char* gestureName(Gesture g) {
   switch (g) {
-    case FIST:          return "FIST";
-    case PINCH:         return "PINCH";
-    case MIDTH:         return "MIDDLE-PINCH";
-    case PEACE:         return "PEACE";
-    case OKTH:          return "THUMBS-UP";
-    case POINT:         return "POINT";
-    case THUMB_FLEX:    return "THUMB";
-    case INDEX_FLEX:    return "INDEX";
-    case MIDDLE_FLEX:   return "MIDDLE";
-    case RING_FLEX:     return "RING";
-    case PINKY_FLEX:    return "PINKY";
-    case REST:          return "REST";
+    case FIST:    return "FIST";
+    case PINCH:   return "PINCH";
+    case MIDTH:   return "MIDTH";
+    case PEACE:   return "PEACE";
+    case OKTH:    return "OKTH";
+    case POINT:   return "POINT";
+    case THUMB:   return "THUMB";
+    case INDEX:   return "INDEX";
+    case MIDDLE:  return "MIDDLE";
+    case RING:    return "RING";
+    case PINKY:   return "PINKY";
+    case REST:    return "REST";
   }
   return "UNKNOWN";
 }
@@ -143,15 +124,14 @@ void loop() {
   int avgP = updateAvg(rawP, bufP, idxP, sumP);
   int avgE = updateAvg(rawE, bufE, idxE, sumE);
 
-  int normF = normalizeChannel(avgF, normBufF);
-  int normP = normalizeChannel(avgP, normBufP);
-  int normE = normalizeChannel(avgE, normBufE);
-
   normIdx = (normIdx + 1) % NORM_N;
 
-  batchSumF += normF;
-  batchSumP += normP;
-  batchSumE += normE;
+  batchSumF += avgF;
+  batchSumP += avgP;
+  batchSumE += avgE;
+  batchSumSqF += (long)avgF * avgF;
+  batchSumSqP += (long)avgP * avgP;
+  batchSumSqE += (long)avgE * avgE;
   batchCount++;
 
   if (batchCount >= BATCH_N) {
@@ -159,12 +139,17 @@ void loop() {
     int batchP = (int)(batchSumP / BATCH_N);
     int batchE = (int)(batchSumE / BATCH_N);
 
-    Gesture g = classifyGesture(batchF, batchP, batchE);
+    int stdF = (int)sqrt((float)(batchSumSqF / BATCH_N) - (float)batchF * batchF);
+    int stdP = (int)sqrt((float)(batchSumSqP / BATCH_N) - (float)batchP * batchP);
+    int stdE = (int)sqrt((float)(batchSumSqE / BATCH_N) - (float)batchE * batchE);
+
+    Gesture g = classifyGesture(batchF, stdF, batchP, stdP, batchE, stdE);
 
     mySerial.println(gestureName(g));
     Serial.print(gestureName(g));
 
     batchSumF = 0; batchSumP = 0; batchSumE = 0;
+    batchSumSqF = 0; batchSumSqP = 0; batchSumSqE = 0;
     batchCount = 0;
   }
 
